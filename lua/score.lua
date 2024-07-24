@@ -1,4 +1,5 @@
 HighScore = HighScore or 0
+Player = Player or "na"
 
 Handlers.add(
     "Update",
@@ -6,15 +7,20 @@ Handlers.add(
     function(msg)
         assert(type(msg.score) == 'string', 'score is required!')
 
+        local highScore = tonumber(HighScore)
         local newScore = tonumber(msg.score)
         assert(newScore, 'score must be a valid number!')
 
-        if newScore > HighScore then
+        if newScore > highScore then
             HighScore = newScore
-            Handlers.utils.reply("HighScore updated to " .. newScore)(msg)
-        else
-            Handlers.utils.reply("Submitted score is not higher than the current HighScore.")(msg)
+            Player = msg.From
         end
+
+        ao.send({
+            Target    = msg.From,
+            HighScore = HighScore,
+            Player    = Player
+        })
     end
 )
 
@@ -24,7 +30,8 @@ Handlers.add(
     function(msg)
         ao.send({
             Target = msg.From,
-            HighScore = HighScore
+            HighScore = HighScore,
+            Player = Player
         })
     end
 )
