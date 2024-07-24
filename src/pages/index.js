@@ -1,11 +1,20 @@
 import { useState, useEffect, useRef } from "react"
-import { dryrun } from "@permaweb/aoconnect"
+import {
+  dryrun,
+  message,
+  createDataItemSigner,
+  result,
+} from "@permaweb/aoconnect"
+import { Button, Flex, Heading, Text, useToast } from "@chakra-ui/react"
+
+const PROCESS_ID = "Y3o0iN2XUY2pMcdvJw4N7Rjbx9GwGz7hzSv5341k8CU"
 
 const SnakeGame = () => {
   const [snake, setSnake] = useState([{ x: 10, y: 10 }])
   const [food, setFood] = useState({ x: 5, y: 5 })
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(0)
+  const [player, setPlayer] = useState("na")
   const [direction, setDirection] = useState("RIGHT")
   const [gameOver, setGameOver] = useState(false)
   const [isStarted, setIsStarted] = useState(false)
@@ -15,6 +24,8 @@ const SnakeGame = () => {
   const cellSize = 20
   const canvasSize = 400
   const debounceTime = 100 // milliseconds
+
+  const toast = useToast()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -104,6 +115,48 @@ const SnakeGame = () => {
     setLastKeyPress(currentTime)
   }
 
+  const getHighScore = async () => {
+    let tags = [{ name: "Action", value: "GetHighScore" }]
+    const result = await dryrun({
+      process: PROCESS_ID,
+      tags,
+    })
+    console.log("getHighScore result", result)
+    setHighScore(JSON.parse(result.Messages[0].Tags[6].value))
+    setPlayer(result.Messages[0].Tags[7].value)
+  }
+
+  const submitScore = async () => {
+    try {
+      await window.arweaveWallet.connect(["ACCESS_ADDRESS", "SIGN_TRANSACTION"])
+
+      const messageId = await message({
+        process: PROCESS_ID,
+        tags: [
+          { name: "Action", value: "Update" },
+          { name: "score", value: score.toString() },
+        ],
+        signer: createDataItemSigner(window.arweaveWallet),
+      })
+      const _res = await result({
+        message: messageId,
+        process: PROCESS_ID,
+      })
+      console.log("submitScore _res", _res)
+      const _highScore = JSON.parse(_res.Messages[0].Tags[6].value)
+      const _player = _res.Messages[0].Tags[7].value
+
+      toast({
+        description: `${_player} has the top score: ${_highScore}`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      })
+    } catch (e) {
+      console.error("submitScore error!", e)
+    }
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas.getContext("2d")
@@ -129,41 +182,40 @@ const SnakeGame = () => {
 
   useEffect(() => {
     ;(async () => {
-      let tags = [{ name: "Action", value: "GetHighScore" }]
-      const result = await dryrun({
-        process: "SzpwHbxKb9U_61Qf2w1doGWC8eH2agq27Xk0WqYW-Ks",
-        tags,
-      })
-      console.log("result", result)
-      setHighScore(JSON.parse(result.Messages[0].Tags[6].value))
+      await getHighScore()
     })()
   }, [gameOver])
 
-  useEffect(() => {
-    if (!isStarted && gameOver && score > highScore) {
-      console.log("set new high score")
-    }
-  }, [isStarted])
-
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        flexDirection: "column",
-      }}
-    >
-      <h1>AO Snake</h1>
-      <canvas
-        ref={canvasRef}
-        width={canvasSize}
-        height={canvasSize}
-        style={{ border: "1px solid black" }}
-      />
-      {<div>Score: {score}</div>}
-      {<div>Highest Score: {highScore}</div>}
-      {gameOver && <div>Game Over!</div>}
-    </div>
+    <Flex minH="100%" direction="column" gap={14} p={4}>
+      <Flex alignItems="center" flexDirection="column">
+        <Flex flexDirection="column">
+          <Heading paddingY={8}>AO Snake</Heading>
+          <Flex>
+            <canvas
+              ref={canvasRef}
+              width={canvasSize}
+              height={canvasSize}
+              style={{ border: "1px solid black" }}
+            />
+          </Flex>
+          <Text>Your Score: {score}</Text>
+          <Text>Top Score: {highScore}</Text>
+          <Text>Top Player:</Text>
+          <Text>{player}</Text>
+          {gameOver && (
+            <>
+              <Flex flexDirection="column">
+                <Heading>Game Over!</Heading>
+                <Button onClick={submitScore} variant="outline">
+                  Submit Score
+                </Button>
+              </Flex>
+            </>
+          )}
+        </Flex>
+      </Flex>
+    </Flex>
   )
 }
 
