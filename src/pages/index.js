@@ -129,7 +129,18 @@ const SnakeGame = () => {
   const submitScore = async () => {
     try {
       await window.arweaveWallet.connect(["ACCESS_ADDRESS", "SIGN_TRANSACTION"])
+    } catch (e) {
+      console.error("Wallet missing!", e)
+      toast({
+        description: "Install ArConnect Wallet at arconnect.io",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      })
+      return
+    }
 
+    try {
       const messageId = await message({
         process: PROCESS_ID,
         tags: [
